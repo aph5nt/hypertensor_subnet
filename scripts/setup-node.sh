@@ -6,6 +6,21 @@
 
 set -e
 
+# File paths - determine project directory first
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+VENV_DIR="${PROJECT_DIR}/.venv"
+
+# Auto-activate virtual environment if it exists and we're not already in it
+if [ -d "$VENV_DIR" ] && [ -z "$VIRTUAL_ENV" ]; then
+    echo "[INFO] Activating Python virtual environment..."
+    source "${VENV_DIR}/bin/activate"
+elif [ -z "$VIRTUAL_ENV" ]; then
+    echo "[ERROR] Virtual environment not found at ${VENV_DIR}"
+    echo "[INFO] Create it with: python3 -m venv ${VENV_DIR} && source ${VENV_DIR}/bin/activate && pip install -e ."
+    exit 1
+fi
+
 # Configuration - Edit these values before running
 SUBNET_ID="${SUBNET_ID:-2}"
 DELEGATE_REWARD_RATE="${DELEGATE_REWARD_RATE:-0.125}"
@@ -13,10 +28,9 @@ STAKE_TO_BE_ADDED="${STAKE_TO_BE_ADDED:-100.00}"
 MAX_BURN_AMOUNT="${MAX_BURN_AMOUNT:-100.00}"
 NODE_NAME="${NODE_NAME:-node01}"
 PORT="${PORT:-31330}"
+PUBLIC_IP="${PUBLIC_IP:-}"  # Set this to your VPS public IP to avoid auto-detection
 
-# File paths
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+# File paths (SCRIPT_DIR and PROJECT_DIR defined above)
 KEYS_DIR="${PROJECT_DIR}/keys"
 ENV_FILE="${PROJECT_DIR}/.env"
 SECRETS_FILE="${PROJECT_DIR}/secrets.txt"
@@ -46,7 +60,12 @@ log_error() {
 }
 
 get_public_ip() {
-    curl -s ifconfig.me || curl -s icanhazip.com || curl -s ipinfo.io/ip
+    # Use PUBLIC_IP from environment/config if set, otherwise auto-detect
+    if [ -n "$PUBLIC_IP" ]; then
+        echo "$PUBLIC_IP"
+    else
+        curl -s --max-time 5 ifconfig.me || curl -s --max-time 5 icanhazip.com || curl -s --max-time 5 ipinfo.io/ip
+    fi
 }
 
 generate_coldkey() {
@@ -162,6 +181,9 @@ save_node_config() {
     echo "SUBNET_ID=\"$SUBNET_ID\"" >> "$NODE_CONFIG_FILE"
     echo "NODE_NAME=\"$NODE_NAME\"" >> "$NODE_CONFIG_FILE"
     echo "PORT=\"$PORT\"" >> "$NODE_CONFIG_FILE"
+    if [ -n "$PUBLIC_IP" ]; then
+        echo "PUBLIC_IP=\"$PUBLIC_IP\"" >> "$NODE_CONFIG_FILE"
+    fi
     chmod 600 "$NODE_CONFIG_FILE"
 }
 
